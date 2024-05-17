@@ -1,4 +1,6 @@
+***
 # Predicting PM10 concentration in Le Havre, France
+***
 
 Models were created in **R** to predict the concentration of particulate matter pollutants, with diameter smaller than 10 micrometers, in the city of Le Havre, France. The *rep* data set from the VSURF library was used.
 
@@ -24,5 +26,11 @@ According to data set description, PM10 concentrations were measured by Air Norm
 
 The data set was split into Learning and Test sets before modelling. Linear, Decision Tree and Random Forest models were constructed and compared by calculating the Root Mean Squared Error (RSME) and the Mean Absolute Error (MAE). Variable selection was performed using random Forests with the VSURF package.
 
+ 
+**To read a report, wihout needing to install RStudio, the "LeHavre_pollution.pdf" is available.** 
 
-   
+# Installation
+
+RStudio 2023.09.1+494 was used, available for download and installation <a href="https://dailies.rstudio.com/version/2023.09.1+494/" target="_blank">here</a>. R version was 4.2.3.
+
+To install required packages from .lock file, use the command **renv::restore()**.
