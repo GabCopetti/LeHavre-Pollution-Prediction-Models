@@ -1,10 +1,10 @@
 ---
 title: "Predicting PM10 concentration in Le Havre, France"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
   html_notebook: default
-  pdf_document: default
 ---
 
 # Describing the data set
@@ -17,7 +17,7 @@ A = VSURF::rep
 str(A)
 ```
 
-According to the data set description, we have PM10 concentrations measured in Le Havre, France, by Air Normand, with the associated weather data provided by Meteo France, from 2004 to 2006. The monitoring station is situated in an urban site, close to traffic, and considered the most polluted in the region. We have **1096 observations.**
+According to the data set description, PM10 concentrations were measured in Le Havre, France, by Air Normand, with the associated weather data provided by Meteo France, from 2004 to 2006. The monitoring station is situated in an urban site, close to traffic, and considered the most polluted in the region. We have **1096 observations.**
 
 The data set description gives the following definitions for the **18 numeric variables** in the data set:
 
@@ -327,4 +327,4 @@ results
 
 The Random Forest model has predictions with the smallest RSME and MAE, followed by the Linear Model. The Decision Tree has the worst performance, but it does provide some nice explainability.
 
-The concentration of other pollutants such as $\text{NO}$, $\text{NO}_2$ and $\text{SO}_2$ in the atmosphere is one of the main predictors of the concentration of $\text{PM10}$. It is also case of the temperature gradient in Le Hevre, where this particular monitoring station is located. When this temperature gradient is high, there seems to be a higher concentration of $\text{PM10}$.
+The concentration of other pollutants such as $\text{NO}$, $\text{NO}_2$ and $\text{SO}_2$ in the atmosphere is one of the main predictors of the concentration of $\text{PM10}$. It is also case of the temperature gradient in Le Havre, where this particular monitoring station is located. When this temperature gradient is high, there seems to be a higher concentration of $\text{PM10}$.
