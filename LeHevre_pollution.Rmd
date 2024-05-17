@@ -1,0 +1,330 @@
+---
+title: "Predicting PM10 concentration in Le Havre, France"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+# Describing the data set
+
+Loading the data set:
+
+```{r}
+library(VSURF)
+A = VSURF::rep
+str(A)
+```
+
+According to the data set description, we have PM10 concentrations measured in Le Havre, France, by Air Normand, with the associated weather data provided by Meteo France, from 2004 to 2006. The monitoring station is situated in an urban site, close to traffic, and considered the most polluted in the region. We have **1096 observations.**
+
+The data set description gives the following definitions for the **18 numeric variables** in the data set:
+
+-   PM10: Daily mean concentration of $\text{PM10}$, in $\mu g/m^3$.
+
+-   NO, NO2, SO2: Daily mean concentration of $\text{NO}$, $\text{NO}_2$ , $\text{SO}_2$ in $\mu g/m^3$.
+
+-   T.min, T.max, T.moy: Daily minimum, maximum and mean temperature, in degree Celsius.
+
+-   DV.maxvv, DV.dom: Daily maximum speed and dominant wind direction in degree.
+
+-   VV.max, VV.moy: Daily maximum and mean wind speed, in m/s.
+
+-   PL.som: Daily rainfall in mm.
+
+-   HR.min, HR.max, HR.moy: Daily minimum, maximum and mean relative humidity, in %.
+
+-   PA.moy: Daily mean air pressure in hPa.
+
+-   GTrouen, GTlehavre: Daily temperature gradient in degree Celsius in the cities of Rouen and Le Havre, respectively.
+
+**PM10 is the target variable** we want to predict using the other 17 variables.
+
+We have missing data:
+
+```{r}
+sum(is.na(A))
+```
+
+There is data missing in most columns:
+
+```{r}
+colnames(A)[ apply(A, 2, anyNA)]
+```
+
+I will substitute the missing values for the mean of each variable:
+
+```{r}
+#Calculating the mean for each variable
+mean_columns <- apply(A[,colnames(A)],2, mean, na.rm =  TRUE)
+
+#Substituing the missing values by the mean
+for (c in names(A)){
+  A[,c] = ifelse(is.na(A[,c]), mean_columns[c], A[,c])
+}
+
+#Checking that there are no missing values
+sum(is.na(A))
+```
+
+# Methodology
+
+We are interested in Regression. For variable selection, I will use Random Forests with the VSURF package. Linear, Decision Tree and Random Forest models will be constructed to make predictions. They will be compared by calculating the Root Mean Squared Error (RSME) and the Mean Absolute Error (MAE). The data set into Learning and Test sets before modelling.
+
+# Splitting the data set
+
+The models will be trained using the Learning set. Around 20% of the data will be kept separately on the Test set to test the models' predictions.
+
+```{r}
+splitProb <- c(0.8,0.2)  
+splitNames <-c("Learning","Test")
+
+n = nrow(x=A) 
+
+splitVector<- sample( x=splitNames, size=n, prob=splitProb, replace=TRUE ) 
+
+table(splitVector)/n
+```
+
+```{r}
+#getting the indeces
+indeces<-list( 
+  learning = which(x=(splitVector=="Learning")),
+  test=which(x=(splitVector=="Test"))
+  )
+#splitting the data set
+learningSet<-A[indeces$learning,]
+testSet<-A[indeces$test,]
+```
+
+# Linear Model
+
+Linear model using all explanatory variables:
+
+```{r}
+L = lm(PM10~., data = learningSet)
+summary(L)
+```
+
+To check the gaussian assumption of the noise, I will use a QQ-plot of the studentized residuals:
+
+```{r}
+#Studentized residuals - QQ plot
+st_residual=rstudent(L)
+#n=1096 #degrees of freedom n-3=1093
+qqplot(qt(ppoints(1096), df=1093), st_residual)
+qqline(st_residual, distribution=function(p){qt(p,df=1093)})
+```
+
+The QQ-plot is skewed and highly-tailed, so the noise does not appear to be Gaussian.
+
+Using the Kolmogorov-Smirnov test to assess if the residuals have a student distribution.
+
+```{r}
+#Smirnov test
+#n=1096 #degrees of freedom n-3=1093
+#'pt' is for student distribution
+ks.test(st_residual,'pt',1093)
+```
+
+The p-value is very small.
+
+The noise does not seem to have a Gaussian distribution. This means that most parameters given in the linear model summary are not meaningful. We still can look at its $R^2$ score, use the linear model for prediction and calculate errors, but we can't do much more.
+
+# Variable Selection
+
+Many of the explanatory variables are highly dependent on each other.
+
+For example, the temperature variables:
+
+```{r}
+cor(learningSet[,c("T.min","T.max","T.moy")])
+```
+
+Or humidity variables:
+
+```{r}
+cor(learningSet[,c("HR.min","HR.max","HR.moy")])
+```
+
+And several others.
+
+Since we cannot make the Gaussian assumption of the noise, we cannot use the p-values given by the linear model to perform variable selection. Instead, I will perform variable selection using Random Forest to detect the most relevant variables for prediction.
+
+```{r}
+library('VSURF')
+#Three steps variable selection procedure based on random forests for 
+#supervised classification and regression problems. 
+#First step ("thresholding step") is dedicated to eliminate irrelevant 
+#variables from the dataset. Second step ("interpretation step") 
+#aims to select all variables related to the response for interpretation purpose.
+#Third step ("prediction step") refines the selection by eliminating redundancy in 
+#the set of variables selected by the second step, for prediction purpose.
+set.seed(221921186)
+Vy<-VSURF(PM10~.,data=learningSet, nmj=1)
+summary(Vy)
+plot(Vy,step="pred",var.names=TRUE)
+```
+
+The selected explanatory variables are:
+
+```{r}
+variables = c()
+for (i in Vy$varselect.pred){
+  variables <- c(variables,colnames(learningSet)[i+1])
+}
+variables
+```
+
+Removing other explanatory variables from Learning and Test sets:
+
+```{r}
+learningSet= learningSet[,c(variables,"PM10")]
+testSet= testSet[,c(variables,"PM10")]
+```
+
+# Back to the Linear Model
+
+We can create a linear model using only the variables selected:
+
+```{r}
+L2 = lm(PM10~., data = learningSet)
+summary(L2)
+```
+
+The $R^2$ didn't change much, but the model is simpler. We still have the problem that the noise is not gaussian, but we can do some predictions. Using the linear model to predict the PM10 values in the Test Set:
+
+```{r}
+#predictions for Linear Model
+pred_lm <- predict(L2, newdata = testSet)
+#true values vs predictions
+plot(testSet$PM10,pred_lm)
+lines(testSet$PM10,testSet$PM10)
+```
+
+The Root Mean Squared Error (RMSE) of the predictions is:
+
+```{r}
+RMSE_lm = sqrt(1 /nrow(testSet)*sum((testSet$PM10-pred_lm)**2))
+RMSE_lm
+```
+
+The Mean Absolute Error (MAE) of the predictions is:
+
+```{r}
+MAE_lm = 1 /nrow(testSet)*sum(abs(testSet$PM10-pred_lm))
+MAE_lm
+```
+
+# Decision Tree
+
+Since the linear model might not be ideal in our case, we can try some non linear models.
+
+I will construct a decision tree using the explanatory variables selected before.
+
+First, I obtain the maximal tree, maintaining the complexity parameter CP low.
+
+The minimum number of observations in a node in order that an split is attempted is set as 2.
+
+```{r}
+library(rpart) 
+library(rpart.plot) 
+#maximal tree
+tree_max=rpart(PM10~.,data=learningSet, minsplit=2, cp = 10^(-9))
+rpart.plot(tree_max)
+```
+
+Then, I will prune this tree using the 1-SE rule.
+
+```{r tree, echo=TRUE, results='hide'}
+finalcart=function(T)
+{
+  P=printcp(T)
+  CV=P[,4] #crossvalidation error
+  a=which(CV==min(CV)) #finding the row with the smallest CV
+  s=P[a,4]+P[a,5] #adding the standard deviation - the new threshold used in the 1SE rule
+  ss=min(s) #in case s is a vector (several values are the min)
+  b=which(CV<=ss)
+  d=b[1] #selected value of cp
+  Tf=prune(T,cp=P[d,1]) #pruning the maximal tree
+  finalcart=Tf
+}
+tree = finalcart(tree_max)
+```
+
+```{r}
+rpart.plot(tree, type = 5)
+```
+
+Using the decision tree model to predict the PM10 values in the Test Set:
+
+```{r}
+pred_tree<- predict(tree, newdata = testSet)
+plot(testSet$PM10,pred_tree)
+lines(testSet$PM10,testSet$PM10)
+```
+
+The RMSE error for this model:
+
+```{r}
+RMSE_tree = sqrt(1 /nrow(testSet)*sum((testSet$PM10-pred_tree)**2))
+RMSE_tree
+```
+
+The MAE error for this model:
+
+```{r}
+MAE_tree = 1 /nrow(testSet)*sum(abs(testSet$PM10-pred_tree))
+MAE_tree
+```
+
+# Random Forest
+
+Finally, we can also use a Random Forest model.
+
+```{r}
+library(randomForest)
+RF=randomForest(PM10~.,data=learningSet) 
+```
+
+```{r}
+varImpPlot(RF)
+```
+
+Using the random forest model to predict the PM10 values in the Test Set:
+
+```{r}
+pred_RF<- predict(RF, newdata = testSet)
+plot(testSet$PM10,pred_RF)
+lines(testSet$PM10,testSet$PM10)
+```
+
+The RMSE error for this model:
+
+```{r}
+RMSE_RF = sqrt(1 /nrow(testSet)*sum((testSet$PM10-pred_RF)**2))
+RMSE_RF
+```
+
+The MAE error for this model:
+
+```{r}
+MAE_RF = 1 /nrow(testSet)*sum(abs(testSet$PM10-pred_RF))
+MAE_RF
+```
+
+# Discussion and Conclusion
+
+```{r}
+results <- c(RMSE_lm, MAE_lm)
+results <- rbind(results, c(RMSE_tree, MAE_tree))
+results <- rbind(results,c(RMSE_RF, MAE_RF))
+row.names(results) <- c("Linear Model", "Decision Tree", "Random Forest")
+colnames(results) <- c("RMSE", "MAE")
+results
+```
+
+The Random Forest model has predictions with the smallest RSME and MAE, followed by the Linear Model. The Decision Tree has the worst performance, but it does provide some nice explainability.
+
+The concentration of other pollutants such as $\text{NO}$, $\text{NO}_2$ and $\text{SO}_2$ in the atmosphere is one of the main predictors of the concentration of $\text{PM10}$. It is also case of the temperature gradient in Le Hevre, where this particular monitoring station is located. When this temperature gradient is high, there seems to be a higher concentration of $\text{PM10}$.
