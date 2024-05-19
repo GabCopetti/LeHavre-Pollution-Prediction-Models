@@ -2,7 +2,7 @@
 # Predicting PM10 concentration in Le Havre, France
 ***
 
-**To read a version of the notebook, wihout needing to install RStudio, a .pdf is available.** 
+**A pdf version of the R notebook is available for visualization purpose.** 
 
 Models were created in **R** to predict the concentration of particulate matter pollutants, with diameter smaller than 10 micrometers, in the city of Le Havre, France. The *rep* data set from the VSURF library was used.
 
